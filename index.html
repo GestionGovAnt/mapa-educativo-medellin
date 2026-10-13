@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mapa Educativo Medellín</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Mapa educativo de Medellín</h1>
+    <span class="src">Sedes educativas GeoMedellín, vigencia 2024 · Población DANE–DAP 2025</span>
+  </header>
+
+  <div class="filters" role="search">
+    <div class="f"><label for="fCom" title="Comuna o corregimiento">Comuna / corregim.</label><select id="fCom"></select></div>
+    <div class="f"><label for="fBar">Barrio o vereda</label><select id="fBar"></select></div>
+    <div class="f"><label for="fSec">Sector</label><select id="fSec">
+      <option value="all">Todos</option><option value="of">Oficial</option><option value="no">No oficial</option><option value="cc">Cobertura contratada</option></select></div>
+    <div class="f"><label for="fNiv">Nivel o grado</label><select id="fNiv"></select></div>
+    <div class="f"><label for="fMet">Color del mapa</label><select id="fMet">
+      <option value="est">Estudiantes</option><option value="sed">Sedes</option><option value="pob">Población 2025</option><option value="tasa">Estudiantes por 1.000 hab.</option></select></div>
+    <div class="f"><label for="fQ">Buscar institución</label><input id="fQ" list="dlE" placeholder="Escribe un nombre" autocomplete="off"><datalist id="dlE"></datalist></div>
+    <div class="f btns"><button class="btn" id="bReset" type="button">Quitar filtros</button></div>
+  </div>
+
+  <div class="main">
+    <div class="mapbox">
+      <svg id="map" role="img" aria-label="Mapa de comunas, barrios y sedes educativas de Medellín"></svg>
+      <div class="crumb" id="crumb"></div>
+      <div class="zoom"><button type="button" id="zIn" aria-label="Acercar">+</button><button type="button" id="zOut" aria-label="Alejar">−</button><button type="button" id="zFit" aria-label="Ver todo">⤢</button></div>
+      <div class="legend" id="legend"></div>
+      <div class="layers" role="group" aria-label="Capas del mapa">
+        <b>Capas</b>
+        <label for="lySed"><input type="checkbox" id="lySed" checked>Sedes educativas</label>
+        <label for="lyLab"><input type="checkbox" id="lyLab" checked>Nombres</label>
+        <label for="lyCol"><input type="checkbox" id="lyCol" checked>Color por indicador</label>
+      </div>
+      <div class="tip" id="tip"></div>
+    </div>
+
+    <aside class="panel">
+      <div class="card">
+        <p class="sub" style="margin:0">Selección actual</p>
+        <p class="where" id="where">Medellín</p>
+        <div class="kpis" style="margin-top:10px">
+          <div class="kpi"><div class="l">Instituciones</div><div class="v" id="kIE">—</div><div class="d" id="kIEd"></div></div>
+          <div class="kpi"><div class="l">Sedes</div><div class="v" id="kSed">—</div><div class="d" id="kSedd"></div></div>
+          <div class="kpi"><div class="l">Estudiantes</div><div class="v" id="kEst">—</div><div class="d" id="kEstd"></div></div>
+          <div class="kpi"><div class="l">Población 2025</div><div class="v" id="kPob">—</div><div class="d" id="kPobd"></div></div>
+        </div>
+        <div class="split" id="split"></div>
+        <div class="split-l"><span id="spO"></span><span id="spN"></span></div>
+      </div>
+
+      <div class="card detail" id="detail" hidden>
+        <h2 id="dName"></h2>
+        <p class="sub" id="dSub"></p>
+        <div id="dTags"></div>
+        <svg id="dGrades" width="100%" style="display:block;margin-top:8px"></svg>
+        <button class="btn" type="button" id="dClose" style="margin-top:8px">Cerrar ficha</button>
+      </div>
+
+      <div class="card">
+        <h2>Estudiantes por grado</h2>
+        <p class="sub">Grado 0 = transición. Pasa el cursor por una barra.</p>
+        <svg id="grades" height="190"></svg>
+      </div>
+
+      <div class="card">
+        <div class="tabs" role="group" aria-label="Lista">
+          <button type="button" data-t="terr" aria-pressed="true" id="tTerr">Territorios</button>
+          <button type="button" data-t="ie" aria-pressed="false" id="tIE">Instituciones</button>
+        </div>
+        <p class="sub" id="listSub"></p>
+        <ul class="list" id="list"></ul>
+      </div>
+
+      <p class="foot">Prejardín, jardín y ciclos de adultos no están en la capa oficial de sedes. La población por barrio sale de la proyección DAP por barrios; su suma no coincide exacto con el total por comuna.</p>
+    </aside>
+  </div>
+</div>
+
+<!-- Librería de mapas y gráficas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<!-- Datos incrustados (sedes, polígonos, población) -->
+<script src="datos/datos.js"></script>
+<!-- Funcionalidad -->
+<script src="js/app.js"></script>
+</body>
+</html>
