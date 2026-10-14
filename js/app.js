@@ -34,6 +34,12 @@ const SED=D.S.map((r,i)=>{const g=r[7].split('.').map(Number);return {i,ie:r[0],
 
 /* 2. Estado de los filtros y capas */
 const st={com:'all',bar:'all',sec:'all',niv:'all',met:'est',q:'',sel:null,list:'terr',showSed:true,showLab:true,showCol:true};
+/* Configuración del recorrido automático (tiempos en milisegundos) */
+const TOUR={on:false,i:0,timer:null,idle:null,list:null,
+  INICIO:2500,     // espera antes del primer recorrido al abrir la página
+  ESCENA:7500,     // duración de cada escena
+  REANUDAR:60000}; // tiempo sin uso para volver a arrancar
+const REDUCE=matchMedia('(prefers-reduced-motion: reduce)').matches;
 ['Sed','Lab','Col'].forEach(n=>{const el=document.getElementById('ly'+n);el.onchange=()=>{st['show'+n]=el.checked;hideTip();render();};});
 
 /* 3. Controles */
@@ -62,7 +68,7 @@ const baseSedes=()=>SED.filter(s=>secOk(s)&&qOk(s));
 function inArea(s){if(st.bar!=='all')return s.bar===st.bar;if(st.com!=='all')return s.com===st.com;return true;}
 
 /* 4. Mapa */
-const svg=d3.select('#map'),gRoot=svg.append('g'),gCom=gRoot.append('g'),gBar=gRoot.append('g'),gLab=gRoot.append('g'),gDots=gRoot.append('g'),gBLab=gRoot.append('g');
+const svg=d3.select('#map'),gRoot=svg.append('g'),gCom=gRoot.append('g'),gBar=gRoot.append('g'),gDots=gRoot.append('g'),gLab=gRoot.append('g'),gBLab=gRoot.append('g');
 const labStyle=sel=>sel.attr('text-anchor','middle').attr('dy','.35em').attr('pointer-events','none').attr('font-family','Figtree, system-ui, sans-serif').attr('font-weight',600).attr('fill','var(--ink)').attr('stroke','var(--surface)').attr('paint-order','stroke').attr('stroke-linejoin','round');
 let W=800,H=600,path,proj;
 const tip=document.getElementById('tip');
@@ -105,14 +111,15 @@ function render(){
   // comunas
   const cv=new Map(COM.filter(c=>c.real).map(c=>[c.id,metricVal(c,false)]));
   const cmax=d3.max([...cv.values()].filter(v=>v!=null))||1;
-  gCom.selectAll('path').attr('fill',d=>{if(!d.real)return cssv('--land');if(showBar&&d.id===st.com)return 'none';if(!st.showCol)return d.urban?cssv('--land-hi'):cssv('--land');const v=cv.get(d.id);return v==null?cssv('--land'):ramp(Math.sqrt(v/cmax));})
+  const anim=TOUR.on&&!REDUCE,T=s=>anim?s.transition().duration(900):s;
+  T(gCom.selectAll('path')).attr('fill',d=>{if(!d.real)return cssv('--land');if(showBar&&d.id===st.com)return 'none';if(!st.showCol)return d.urban?cssv('--land-hi'):cssv('--land');const v=cv.get(d.id);return v==null?cssv('--land'):ramp(Math.sqrt(v/cmax));})
     .attr('fill-opacity',d=>showBar&&d.id!==st.com?0.35:1).attr('stroke',st.showCol?cssv('--surface'):cssv('--stroke'));
   // barrios
   const bars=showBar?BAR.filter(b=>b.com===st.com):[];
   const bv=new Map(bars.map(b=>[b.id,metricVal(b,true)]));const bmax=d3.max([...bv.values()].filter(v=>v!=null))||1;
-  gBar.selectAll('path').attr('display',d=>d.com===st.com&&showBar?null:'none')
-    .attr('fill',d=>{if(!st.showCol)return cssv('--land-hi');const v=bv.get(d.id);return v==null?cssv('--land'):ramp(Math.sqrt(v/bmax));})
-    .attr('stroke',d=>d.id===st.bar?cssv('--sel'):cssv('--stroke')).attr('stroke-width',d=>(d.id===st.bar?2.4:0.7)/(d3.zoomTransform(svg.node()).k));
+  gBar.selectAll('path').attr('display',d=>d.com===st.com&&showBar?null:'none').attr('stroke-width',d=>(d.id===st.bar?2.4:0.7)/(d3.zoomTransform(svg.node()).k));
+  T(gBar.selectAll('path')).attr('fill',d=>{if(!st.showCol)return cssv('--land-hi');const v=bv.get(d.id);return v==null?cssv('--land'):ramp(Math.sqrt(v/bmax));})
+    .attr('stroke',d=>d.id===st.bar?cssv('--sel'):cssv('--stroke'));
   gBar.selectAll('path').filter(d=>d.id===st.bar).raise();
   gLab.attr('display',!showBar&&st.showLab?null:'none');
   const kz=d3.zoomTransform(svg.node()).k;
@@ -121,12 +128,13 @@ function render(){
   // dots
   const vis=baseSedes();const maxS=d3.max(SED,s=>s.tot)||1;
   const k=d3.zoomTransform(svg.node()).k;
-  const dots=gDots.selectAll('circle').data(vis,d=>d.i).join('circle').attr('cx',d=>d.px).attr('cy',d=>d.py)
+  const dots=gDots.selectAll('circle').data(vis,d=>d.i).join(en=>en.append('circle').attr('fill-opacity',0)).attr('cx',d=>d.px).attr('cy',d=>d.py)
     .each(d=>{d._r=1.6+Math.sqrt(stud(d)/maxS)*9;})
     .attr('r',d=>d._r/Math.sqrt(k)).attr('fill',d=>d.of?cssv('--oficial'):cssv('--privado'))
-    .attr('fill-opacity',d=>inArea(d)?0.85:0.25).attr('stroke',d=>st.sel===d.i?cssv('--sel'):cssv('--surface')).attr('stroke-width',d=>(st.sel===d.i?2.2:0.8)/k).style('cursor','pointer')
+    .attr('stroke',d=>st.sel===d.i?cssv('--sel'):cssv('--surface')).attr('stroke-width',d=>(st.sel===d.i?2.2:0.8)/k).style('cursor','pointer')
     .on('mousemove',(ev,d)=>showTip(ev,`<b>${esc(d.sede)}</b><span class="m">${esc(d.principal?CLAS[d.clas]:d.ieName)}<br>${fmt.format(stud(d))} estudiantes${st.niv==='all'?'':' en el filtro'} · ${fmt.format(d.tot)} total<br>${esc(barById.get(d.bar)?.name||d.bar)}, ${esc(comById.get(d.com)?.name||d.com)}</span>`))
     .on('mouseleave',hideTip).on('click',(ev,d)=>{ev.stopPropagation();selectSede(d,false);});
+  T(dots).attr('fill-opacity',d=>inArea(d)?0.85:0.25);
   if(st.sel!=null)dots.filter(d=>d.i===st.sel).raise();
   renderLegend(showBar?bmax:cmax);renderPanel();renderList();renderCrumb();
 }
@@ -191,7 +199,60 @@ function renderList(){const L=document.getElementById('list'),sub=document.getEl
     by.slice(0,150).forEach(([ie,v])=>li(D.E[ie],`${v.of?'Oficial':'No oficial'} · ${v.n} sede${v.n>1?'s':''}`,fmt.format(v.est),()=>selectSede(v.first,true)));}
   function li(n,small,c,fn,on){const e=document.createElement('li');e.tabIndex=0;if(on)e.style.background='var(--bg)';e.innerHTML=`<div class="n">${esc(n)}<small>${esc(small)}</small></div><div class="c">${c}</div>`;e.onclick=fn;e.onkeydown=ev=>{if(ev.key==='Enter')fn();};L.appendChild(e);}
 }
+/* 6. Recorrido automático
+   Mientras nadie usa el mapa, recorre escenas (filtros y segmentaciones).
+   Un clic, una tecla, scroll o toque lo detiene y el mapa queda quieto.
+   Tras TOUR.REANUDAR ms sin uso vuelve a empezar. */
+const tourBox=document.getElementById('tour'),tourT=document.getElementById('tourT'),tourS=document.getElementById('tourS'),tourBar=document.getElementById('tourBar'),tourBtn=document.getElementById('tourBtn');
+const LIMPIO={com:'all',bar:'all',sec:'all',niv:'all',met:'est',q:'',sel:null,showSed:true,showLab:true,showCol:true};
+const urb=()=>COM.filter(c=>c.real);
+const topCom=pred=>urb().map(c=>({c,a:agg(s=>s.com===c.id&&pred(s))})).sort((p,q)=>q.a.est-p.a.est)[0];
+const pct=(a,b)=>b?Math.round(a/b*100)+' %':'0 %';
+function escenas(){
+  const totalEst=d3.sum(SED,s=>s.tot);
+  const L=[
+    {st:{},t:'Medellín: oferta educativa por comuna',s:()=>{const a=agg(()=>true);return `${fmt.format(a.ie)} instituciones en ${nSed(a.sed)} con ${fmt.format(a.est)} estudiantes de grado 0 a 11. Más oscuro = más estudiantes.`;}},
+    {st:{met:'pob',showSed:false},t:'¿Dónde vive la gente?',s:()=>{const c=urb().sort((a,b)=>b.pop-a.pop)[0];return `Población 2025 por comuna. La más poblada es ${c.name}, con ${fmt.format(c.pop)} habitantes.`;}},
+    {st:{sec:'of'},t:'Sector oficial',s:()=>{const a=agg(()=>true);return `${nSed(a.sed)} oficiales atienden ${fmt.format(a.est)} estudiantes, el ${pct(a.est,totalEst)} de la matrícula de la ciudad.`;}},
+    {st:{niv:'me'},t:'Educación media (10° y 11°)',s:()=>{const a=agg(()=>true),t=topCom(()=>true);return `${fmt.format(a.est)} estudiantes en media. La comuna con más es ${t.c.name} (${fmt.format(t.a.est)}).`;}},
+    {st:{niv:'tr'},t:'Transición (grado 0)',s:()=>{const a=agg(()=>true),t=topCom(()=>true);return `${fmt.format(a.est)} niños en transición. Donde más hay: ${t.c.name} (${fmt.format(t.a.est)}).`;}},
+    {st:{sec:'cc'},t:'Cobertura contratada',s:()=>{const a=agg(()=>true);return `${nSed(a.sed)} privadas con ${fmt.format(a.est)} estudiantes cuya matrícula paga el Distrito.`;}}
+  ];
+  // Las tres comunas con más estudiantes, entrando a sus barrios
+  urb().map(c=>({c,e:d3.sum(SED.filter(s=>s.com===c.id),s=>s.tot)})).sort((a,b)=>b.e-a.e).slice(0,3).forEach(({c})=>{
+    L.push({st:{com:c.id},t:`${c.id} · ${c.name}`,s:()=>{const a=agg(s=>s.com===c.id);const b=BAR.filter(x=>x.com===c.id).map(x=>({x,e:agg(s=>s.bar===x.id).est})).sort((p,q)=>q.e-p.e)[0];
+      return `${nSed(a.sed)} y ${fmt.format(a.est)} estudiantes para ${fmt.format(c.pop)} habitantes. Barrio con más estudiantes: ${b.x.name} (${fmt.format(b.e)}).`;}});
+  });
+  L.push({st:{met:'tasa',showSed:false},t:'Estudiantes por cada 1.000 habitantes',s:()=>{const v=urb().map(c=>({c,v:agg(s=>s.com===c.id).est/c.pop*1000})).sort((a,b)=>b.v-a.v);
+    return `Dónde se concentran los colegios. Más alto: ${v[0].c.name} (${fmt.format(Math.round(v[0].v))}). Más bajo: ${v[v.length-1].c.name} (${fmt.format(Math.round(v[v.length-1].v))}).`;}});
+  L.push({st:{showSed:false,showCol:false},t:'16 comunas y 5 corregimientos',s:()=>`División político-administrativa de Medellín: ${BAR.filter(b=>/^\d{4}$/.test(b.id)&&+b.id<5000).length} barrios en la zona urbana y veredas en los corregimientos. Activa las capas para volver a ver los datos.`});
+  return L;
+}
+function aplicarEscena(sc){
+  Object.assign(st,LIMPIO,sc.st);
+  fCom.value=st.com;fillBar();fBar.value=st.bar;fSec.value=st.sec;fNiv.value=st.niv;fMet.value=st.met;fQ.value='';
+  ['Sed','Lab','Col'].forEach(n=>{document.getElementById('ly'+n).checked=st['show'+n];});
+  hideTip();zoomTo();render();
+  tourT.textContent=sc.t;tourS.textContent=sc.s();
+  tourBar.style.transition='none';tourBar.style.width='0';void tourBar.offsetWidth;
+  tourBar.style.transition=REDUCE?'none':`width ${TOUR.ESCENA}ms linear`;tourBar.style.width='100%';
+}
+function pasoTour(){if(!TOUR.on)return;const L=TOUR.list;aplicarEscena(L[TOUR.i%L.length]);TOUR.i++;TOUR.timer=setTimeout(pasoTour,TOUR.ESCENA);}
+function iniciarTour(){if(TOUR.on)return;clearTimeout(TOUR.idle);TOUR.on=true;TOUR.list=escenas();
+  tourBox.hidden=false;tourBox.classList.remove('paused');tourBtn.textContent='Pausar';tourBtn.setAttribute('aria-label','Pausar recorrido automático');
+  document.getElementById('crumb').classList.add('under');pasoTour();}
+function detenerTour(){clearTimeout(TOUR.timer);if(!TOUR.on)return;TOUR.on=false;
+  tourBox.classList.add('paused');tourBtn.textContent='▶ Ver recorrido';tourBtn.setAttribute('aria-label','Reanudar recorrido automático');
+  tourBar.style.transition='none';document.getElementById('crumb').classList.remove('under');}
+function programarReanudar(){clearTimeout(TOUR.idle);if(TOUR.REANUDAR>0)TOUR.idle=setTimeout(iniciarTour,TOUR.REANUDAR);}
+tourBtn.addEventListener('click',()=>{if(TOUR.on){detenerTour();programarReanudar();}else iniciarTour();});
+const usoReal=ev=>{if(!ev.isTrusted||ev.target.closest&&ev.target.closest('#tourBtn'))return;detenerTour();programarReanudar();};
+['pointerdown','keydown','wheel','touchstart'].forEach(tp=>document.addEventListener(tp,usoReal,{capture:true,passive:true}));
+document.addEventListener('mousemove',()=>{if(!TOUR.on)programarReanudar();},{passive:true});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){detenerTour();clearTimeout(TOUR.idle);}else programarReanudar();});
+
 fillBar();layout();render();
+TOUR.idle=setTimeout(iniciarTour,TOUR.INICIO);
 let rt;new ResizeObserver(()=>{clearTimeout(rt);rt=setTimeout(()=>{layout();render();zoomTo();},150);}).observe(document.getElementById('map'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
 new MutationObserver(render).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
